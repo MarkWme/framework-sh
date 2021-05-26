@@ -10,6 +10,9 @@ name=akscluster
 
 az group create -n $name -l $location
 
+#
+# AKS cluster with kubenet, three nodes
+#
 az aks create \
     --name $name \
     --resource-group $name \
@@ -17,6 +20,29 @@ az aks create \
     --location $location \
     --network-plugin kubenet \
     --node-count 3
+
+#
+# AKS cluster with Azure CNI
+# Creates VNet, Managed Identity and cluster with three nodes
+#
+az network vnet create -n aks-vnet -g $name --address-prefixes 10.200.0.0/16 -l westeurope --subnet-name aks-subnet --subnet-prefixes 10.200.0.0/24
+vnetId=$(az network vnet subnet list --vnet-name aks-vnet --resource-group akscluster --query "[0].id" -o tsv)
+az identity create -n $name -g $name
+identityId=$(az identity show --name $name -g $name --query id -o tsv)
+az aks create \
+    --name $name \
+    --resource-group $name \
+    --kubernetes-version $version \
+    --location $location \
+    --network-plugin azure \
+    --vnet-subnet-id $vnetId \
+    --docker-bridge-address 172.17.0.1/16 \
+    --dns-service-ip 10.240.0.10 \
+    --service-cidr 10.240.0.0/24 \
+    --enable-managed-identity \
+    --assign-identity $identityId \
+    --node-count 3
+
 
 az aks get-credentials -n $name -g $name --overwrite-existing
 
