@@ -384,3 +384,8 @@ spec:
     serviceName: bookbuyer
     servicePort: 14001
 EOF
+
+#
+# Clean up
+#
+az group delete -n $name -y
