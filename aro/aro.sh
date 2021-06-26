@@ -98,3 +98,8 @@ apiServer=$(az aro show -g $RESOURCEGROUP -n $CLUSTER --query apiserverProfile.u
 userName=$(az aro list-credentials --name $CLUSTER --resource-group $RESOURCEGROUP | jq -r ".kubeadminUsername")
 password=$(az aro list-credentials --name $CLUSTER --resource-group $RESOURCEGROUP | jq -r ".kubeadminPassword")
 oc login $apiServer -u $userName -p $password
+
+#
+# Delete the cluster
+#
+az aro delete --resource-group $RESOURCEGROUP --name $CLUSTER
