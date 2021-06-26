@@ -69,3 +69,32 @@ az aro create \
   --worker-subnet worker-subnet \
   --pull-secret @/mnt/c/Users/mtjw/Downloads/pull-secret.txt
 
+#
+# Get the cluster credentials
+#
+az aro list-credentials \
+  --name $CLUSTER \
+  --resource-group $RESOURCEGROUP
+
+#
+# Get the cluster admin URL
+#
+az aro show \
+    --name $CLUSTER \
+    --resource-group $RESOURCEGROUP \
+    --query "consoleProfile.url" -o tsv
+
+#
+# Download OpenShift command line tool
+#
+cd ~
+wget https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux.tar.gz
+sudo tar -zxvf openshift-client-linux.tar.gz -C /usr/local/bin
+
+#
+# Login with oc
+#
+apiServer=$(az aro show -g $RESOURCEGROUP -n $CLUSTER --query apiserverProfile.url -o tsv)
+userName=$(az aro list-credentials --name $CLUSTER --resource-group $RESOURCEGROUP | jq -r ".kubeadminUsername")
+password=$(az aro list-credentials --name $CLUSTER --resource-group $RESOURCEGROUP | jq -r ".kubeadminPassword")
+oc login $apiServer -u $userName -p $password
