@@ -6,7 +6,7 @@
 
 version=$(az aks get-versions -l $location --query "orchestrators[-1].orchestratorVersion" -o tsv)  2>/dev/null
 location=westeurope
-name=aksdemo
+name=akscluster1
 
 az group create -n $name -l $location
 

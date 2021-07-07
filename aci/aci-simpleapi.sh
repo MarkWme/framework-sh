@@ -50,3 +50,9 @@ ACI_URL=$(az container show -n $NAME -g $NAME --query ipAddress.fqdn -o tsv)
 # Test container connection
 #
 curl $ACI_URL:3000/api/getVersion
+
+#
+# Clean up
+#
+az group delete --name $NAME -y
+az ad sp delete --id $SP_APP_ID
