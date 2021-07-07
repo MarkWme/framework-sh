@@ -37,6 +37,8 @@ az container create \
   --registry-username $SP_APP_ID \
   --registry-password $SP_PASSWD \
   --dns-name-label $NAME \
+  --cpu 2 \
+  --memory 8 \
   --ports 3000
 
 #
