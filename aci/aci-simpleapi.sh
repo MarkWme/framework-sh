@@ -29,6 +29,8 @@ SP_APP_ID=$(az ad sp list --display-name $NAME --query '[].appId' -o tsv)
 #
 # Create container
 #
+# You might need to wait 30 seconds or so for the above SP permission to propagate before creating the ACI
+#
 az container create \
   --resource-group $NAME \
   --name $NAME \
@@ -54,5 +56,6 @@ curl $ACI_URL:3000/api/getVersion
 #
 # Clean up
 #
+az container delete -n $NAME -g $NAME -y
 az group delete --name $NAME -y
 az ad sp delete --id $SP_APP_ID

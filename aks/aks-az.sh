@@ -4,11 +4,11 @@
 # AKS cluster with Availability Zones
 #
 
-version=$(az aks get-versions -l $location --query "orchestrators[-1].orchestratorVersion" -o tsv)  2>/dev/null
 location=westeurope
 name=aksaz
 virtualNetworkPrefix=10.202.0.0/16
 subnetPrefix=10.202.0.0/24
+version=$(az aks get-versions -l $location --query "orchestrators[-1].orchestratorVersion" -o tsv)  2>/dev/null
 
 az group create -n $name -l $location
 
