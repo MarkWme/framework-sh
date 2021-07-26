@@ -92,6 +92,7 @@ az vm create --name ubuntu-jump \
   --image UbuntuLTS \
   --subnet jumpbox-subnet \
   --public-ip-address jumphost-ip \
+  --public-ip-sku Standard \
   --vnet-name aro-vnet
 
 #
@@ -115,12 +116,7 @@ az network public-ip create -g $RESOURCEGROUP -n fw-ip --sku "Standard" --locati
 #
 # Add / update the Azure Firewall extension for the az cli
 #
-az extension add -n azure-firewall
-az extension update -n azure-firewall
-
-#
-# You've only tested as far as this so far! :-)
-#
+az extension add --upgrade --yes -n azure-firewall
 
 #
 # Create Azure Firewall
@@ -172,6 +168,84 @@ az network vnet subnet update -g $RESOURCEGROUP --vnet-name aro-vnet --name mast
 az network vnet subnet update -g $RESOURCEGROUP --vnet-name aro-vnet --name worker-subnet --route-table aro-udr
 
 #
-# Continue adding steps from here:
-# https://docs.microsoft.com/en-us/azure/openshift/howto-restrict-egress#configure-the-jumpbox
+# Get public IP address of jumphost
+#
+JUMPHOST_IP=$(az network public-ip show -g arosecure -n jumphost-ip | jq -r '.ipAddress')
+
+#
+# Jumphost configuration
+# Update packages, install Azure CLI and jq
+#
+ssh aroadmin@$JUMPHOST_IP
+sudo apt update && sudo apt upgrade -y
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+sudo apt install jq -y
+#
+# Connect to ARO
+#
+az login
+CLUSTER=arosecure
+RESOURCEGROUP=arosecure
+ARO_PASSWORD=$(az aro list-credentials -n $CLUSTER -g $RESOURCEGROUP -o json | jq -r '.kubeadminPassword')
+ARO_USERNAME=$(az aro list-credentials -n $CLUSTER -g $RESOURCEGROUP -o json | jq -r '.kubeadminUsername')
+ARO_URL=$(az aro show -n $CLUSTER -g $RESOURCEGROUP -o json | jq -r '.apiserverProfile.url')
+
+#
+# Install oc cli
+#
+cd ~
+wget https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux.tar.gz
+mkdir openshift
+tar -zxvf openshift-client-linux.tar.gz -C openshift
+echo 'export PATH=$PATH:~/openshift' >> ~/.bashrc && source ~/.bashrc
+
+#
+# Login with oc
+#
+
+#
+# Test connectivity to the outside world
+# The final command should be denied by the firewall
+#
+cat <<EOF | oc apply -f -
+apiVersion: v1
+kind: Pod
+metadata:
+  name: centos
+spec:
+  containers:
+  - name: centos
+    image: centos
+    ports:
+    - containerPort: 80
+    command:
+    - sleep
+    - "3600"
+EOF
+
+oc exec -it centos -- /bin/bash
+
+curl microsoft.com
+
+#
+# Access the web console
+# 
+# From your laptop, not the jumpbox!
+#
+# Although I couldn't get this to work. One problem was that running ssh with sudo
+# seems to fail if the id_rsa.pub public key file exists in the .ssh folder. Fix was
+# to simply move the file out of that folder. 
+#
+# After that though, attempting to establish a tunnel using either the below or sshuttle
+# always resulted in the ssh connection being immediately dropped by the host after
+# authentication. In the end, it was quicker to deploy a Windows VM and access the
+# web console from there!
+#
+CONSOLE_URL=$(az aro show -n $CLUSTER -g $RESOURCEGROUP --query "consoleProfile.url" -o tsv)
+sudo ssh -L 443:$CONSOLE_URL:443 aroadmin@$JUMPHOST_IP
+
+#
+# Examples
+# sudo ssh -i /Users/jimzim/.ssh/id_rsa -L 443:console-openshift-console.apps.d5xm5iut.eastus.aroapp.io:443 aroadmin@104.211.18.56
+# sudo ssh -i /home/mark/.ssh/id_rsa -L 443:console-openshift-console.apps.fnew20kz.westeurope.aroapp.io:443 arouser@40.118.10.248 -v
 #
