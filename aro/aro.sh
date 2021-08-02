@@ -102,4 +102,5 @@ oc login $apiServer -u $userName -p $password
 #
 # Delete the cluster
 #
-az aro delete --resource-group $RESOURCEGROUP --name $CLUSTER
+#az aro delete --resource-group $RESOURCEGROUP --name $CLUSTER
+
