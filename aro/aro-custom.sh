@@ -2,6 +2,7 @@
 
 #
 # ARO Cluster with custom service principal and resource group
+# Adds Azure Monitor support
 #
 # Get the pull secret from https://cloud.redhat.com/openshift/install/azure/aro-provisioned
 #
@@ -106,6 +107,21 @@ apiServer=$(az aro show -g $name -n $name --query apiserverProfile.url -o tsv)
 userName=$(az aro list-credentials --name $name --resource-group $name | jq -r ".kubeadminUsername")
 password=$(az aro list-credentials --name $name --resource-group $name | jq -r ".kubeadminPassword")
 oc login $apiServer -u $userName -p $password
+
+#
+# Enable Azure Monitor
+#
+curl -o enable-monitoring.sh -L https://aka.ms/enable-monitoring-bash-script
+mv enable-monitoring.sh ~/
+
+az monitor log-analytics workspace create \
+    --resource-group $name \
+    --workspace-name ${name}-azmon
+
+export logAnalyticsWorkspaceResourceId=$( az monitor log-analytics workspace show --workspace-name ${name}-azmon --resource-group $name --query id -o tsv)
+export azureAroV4ClusterResourceId=$(az aro show --name $name -g $name --query id -o tsv)
+
+bash ~/enable-monitoring.sh --resource-id $azureAroV4ClusterResourceId --workspace-id $logAnalyticsWorkspaceResourceId
 
 #
 # Delete the cluster
