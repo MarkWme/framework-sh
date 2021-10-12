@@ -4,13 +4,13 @@
 # AKS cluster with dynamic IP
 #
 location=westeurope
-name=aksdynip
+name=aksappgw
 virtualNetworkName=akscluster-vnet
-virtualNetworkPrefix=10.215.0.0/16
+virtualNetworkPrefix=10.178.0.0/16
 nodeSubnetName=akscluster-node-subnet
-nodeSubnetPrefix=10.215.0.0/24
+nodeSubnetPrefix=10.178.0.0/24
 podSubnetName=akscluster-pod-subnet
-podSubnetPrefix=10.215.1.0/24
+podSubnetPrefix=10.178.1.0/24
 version=$(az aks get-versions -l $location --query "orchestrators[-1].orchestratorVersion" -o tsv)  2>/dev/null
 
 az group create -n $name -l $location

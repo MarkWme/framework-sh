@@ -57,7 +57,7 @@ kind create cluster --name kind-capz
 #
 # Install clusterctl
 #
-curl -L https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.4.0/clusterctl-linux-amd64 -o clusterctl
+curl -L https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.4.3/clusterctl-linux-amd64 -o clusterctl
 chmod +x ./clusterctl
 sudo mv ./clusterctl /usr/local/bin/clusterctl
 clusterctl version
