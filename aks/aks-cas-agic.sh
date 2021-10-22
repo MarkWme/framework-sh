@@ -11,9 +11,8 @@ name=aks-$(cat /dev/urandom | tr -dc '[:lower:]' | fold -w ${1:-5} | head -n 1)
 #
 # Calculate next available network address space
 #
-az network vnet list --query "[].addressSpace.addressPrefixes" -o tsv | cut -d . -f 2 | sort | while read -r line; do
-  number=$line
-done
+number=0
+number=$(az network vnet list --query "[].addressSpace.addressPrefixes" -o tsv | cut -d . -f 2 | sort | tail -n 1)
 networkNumber=$(expr $number + 1)
 virtualNetworkPrefix=10.${networkNumber}.0.0/16
 aksSubnetPrefix=10.${networkNumber}.0.0/24

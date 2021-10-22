@@ -244,6 +244,10 @@ curl microsoft.com
 #
 CONSOLE_URL=$(az aro show -n $CLUSTER -g $RESOURCEGROUP --query "consoleProfile.url" -o tsv)
 sudo ssh -L 443:$CONSOLE_URL:443 aroadmin@$JUMPHOST_IP
+#
+# Note - CONSOLE_URL needs to have the "https" stripped!
+#
+
 
 #
 # Example
