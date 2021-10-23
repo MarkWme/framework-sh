@@ -28,7 +28,7 @@ jumpboxSubnetPrefix=10.${networkNumber}.6.0/23
 #
 # Get cluster configuration details
 #
-read -p "Private cluster? (y/N)" privateCluster
+read -p "Private cluster? (y/N) " privateCluster
 if [[ $privateCluster =~ ^[Yy]$ ]]
 then
   apiServerVisibility=Private
@@ -181,7 +181,12 @@ oc login $apiServer -u $userName -p $password
 #
 # Delete the cluster
 #
-az aro delete --resource-group $name --name $name
-az group delete --name $name -y
-clientId=$(az ad sp list --display-name ${name}-spn --query '[].appId' -o tsv)
-az ad sp delete --id $clientId
+read -p "Clean up deployment? (y/N or CTRL-C to stop) " cleanUp
+if [[ $cleanUp =~ ^[Yy]$ ]]
+then
+  az aro delete --resource-group $name --name $name
+  az group delete --name $name -y
+  clientId=$(az ad sp list --display-name ${name}-spn --query '[].appId' -o tsv)
+  az ad sp delete --id $clientId
+fi
+
