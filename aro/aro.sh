@@ -28,22 +28,29 @@ jumpboxSubnetPrefix=10.${networkNumber}.6.0/23
 #
 # Get cluster configuration details
 #
-read -p "Private cluster? (y/N) " privateCluster
-if [[ $privateCluster =~ ^[Yy]$ ]]
+read -p "Private API server? (y/N) " privateAPI
+if [[ $privateAPI =~ ^[Yy]$ ]]
 then
   apiServerVisibility=Private
-  ingressVisibility=Private
-  name=${name}-priv
 else
   apiServerVisibility=Public
-  ingressVisibility=Public
-  name=${name}-pub
 fi
+
+read -p "Private Ingress? (y/N) " privateIngress
+if [[ $privateIngress =~ ^[Yy]$ ]]
+then
+  ingressVisibility=Private
+else
+  ingressVisibility=Public
+fi
+
 echo "Resource name prefix: ${name}"
 echo "Virtual Network: ${virtualNetworkPrefix}"
 echo "Master Nodes Subnet: ${masterSubnetPrefix}"
 echo "Worker Nodes Subnet: ${workerSubnetPrefix}"
-if [[ $privateCluster =~ ^[Yy]$ ]]
+
+if [[ $privateAPI =~ ^[Yy]$ ]]
+then
   echo "Jumpbox Subnet: ${jumpboxSubnetPrefix}"
 fi
 #
@@ -101,7 +108,8 @@ az network vnet subnet create \
   --service-endpoints Microsoft.ContainerRegistry \
   -o table
 
-if [[ $privateCluster =~ ^[Yy]$ ]]
+if [[ $privateAPI =~ ^[Yy]$ ]]
+then
   #
   # Subnet for jumpbox
   #
@@ -117,18 +125,34 @@ if [[ $privateCluster =~ ^[Yy]$ ]]
   # Create a jumpbox VM
   #
   adminUserName=aroadmin
+  adminPassword=$(cat /dev/urandom | tr -dc '[:alnum:]!$%&()[]{}:;.' | fold -w ${1:-20} | head -n 1)
 
-  az vm create --name ubuntu-jump \
+  az vm create --name jumpbox-ubuntu \
     --resource-group $name \
     --ssh-key-values ~/.ssh/id_rsa.pub \
     --admin-username $adminUserName \
     --image UbuntuLTS \
     --subnet ${name}-jumpbox-subnet \
-    --public-ip-address jumphost-ip \
+    --public-ip-address jumpbox-ubuntu-ip \
     --public-ip-sku Standard \
     --vnet-name ${name}-vnet \
     -o table
-  jumphostIp=$(az network public-ip show -g $name -n jumphost-ip | jq -r '.ipAddress')
+
+  az vm create --name jumpbox-win \
+    --resource-group $name \
+    --admin-username $adminUserName \
+    --admin-password "${adminPassword}" \
+    --image MicrosoftWindowsDesktop:windows-11:win11-21h2-pro:22000.258.2110071642 \
+    --size Standard_D4s_v4 \
+    --subnet ${name}-jumpbox-subnet \
+    --public-ip-address jumpbox-win-ip \
+    --public-ip-sku Standard \
+    --vnet-name ${name}-vnet \
+    -o table
+
+echo "Jumphost admin name: ${adminUserName}"
+echo "Windows jumphost password: ${adminPassword}"
+
 fi
 
 
