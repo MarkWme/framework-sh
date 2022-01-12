@@ -3,83 +3,68 @@
 #
 # AKS cluster with Availability Zones
 #
-
 location=westeurope
-name=aksaz
-virtualNetworkPrefix=10.202.0.0/16
-subnetPrefix=10.202.0.0/24
+#
+# Choose random name for resources
+#
+name=aks-$(cat /dev/urandom | tr -dc '[:lower:]' | fold -w ${1:-5} | head -n 1)
+#
+# Calculate next available network address space
+#
+number=0
+number=$(az network vnet list --query "[].addressSpace.addressPrefixes" -o tsv | cut -d . -f 2 | sort | tail -n 1)
+networkNumber=$(expr $number + 1)
+virtualNetworkPrefix=10.${networkNumber}.0.0/16
+aksSubnetPrefix=10.${networkNumber}.0.0/24
+
 version=$(az aks get-versions -l $location --query "orchestrators[-1].orchestratorVersion" -o tsv)  2>/dev/null
 
 az group create -n $name -l $location
 
 #
-# AKS cluster with kubenet, three nodes
+# Create Log Analytics workspace
 #
-az aks create \
-    --name $name \
-    --resource-group $name \
-    --kubernetes-version $version \
-    --location $location \
-    --network-plugin kubenet \
-    --node-osdisk-type Ephemeral \
-    --node-osdisk-size 30 \
-    --node-count 3 \
-    --zone 1 2 3
+az monitor log-analytics workspace create -g $name -n ${name}-logs
+workspaceId=$(az monitor log-analytics workspace list --query "[?name=='${name}-logs'].id" -o tsv)
 
 #
-# AKS cluster with Azure CNI
-# Creates VNet, Managed Identity and cluster with three nodes
+# Creates Network and subnets for cluster and Application Gateway
 #
-az network vnet create -n aks-vnet -g $name --address-prefixes $virtualNetworkPrefix -l westeurope --subnet-name aks-subnet --subnet-prefixes $subnetPrefix
-vnetId=$(az network vnet subnet list --vnet-name aks-vnet --resource-group $name --query "[0].id" -o tsv)
-az identity create -n $name -g $name
+az network vnet create -g $name -n ${name}-network --address-prefixes $virtualNetworkPrefix
+az network vnet subnet create -g $name --vnet-name ${name}-network --name ${name}-aks-subnet --address-prefixes $aksSubnetPrefix -o table
+
+aksSubnetId=$(az network vnet subnet list --vnet-name ${name}-network --resource-group $name --query "[?name=='${name}-aks-subnet'].id" -o tsv)
+#
+# Create managed identity for control plane
+#
+az identity create -n $name -g $name -o table
 identityId=$(az identity show --name $name -g $name --query id -o tsv)
+
 az aks create \
     --name $name \
     --resource-group $name \
     --kubernetes-version $version \
     --location $location \
     --network-plugin azure \
-    --vnet-subnet-id $vnetId \
-    --docker-bridge-address 172.17.0.1/16 \
-    --dns-service-ip 10.240.0.10 \
+    --vnet-subnet-id $aksSubnetId \
     --service-cidr 10.240.0.0/24 \
+    --dns-service-ip 10.240.0.10 \
     --node-osdisk-type Ephemeral \
     --node-osdisk-size 30 \
     --enable-managed-identity \
     --assign-identity $identityId \
     --node-count 3 \
-    --zone 1 2 3
-
+    --zone 1 2 3 \
+    --tags "features=az"
 
 az aks get-credentials -n $name -g $name --overwrite-existing
 
 #
-# Scale cluster up and down
+# View nodes with details of AZ each is deployed to
 #
-az aks scale -n $name -g $name --node-count=7
-
-#
-# Add nodepool
-#
- az aks nodepool add \
-    --resource-group $name \
-    --cluster-name $name \
-    --name np01 \
-    --node-count 3
-
-
-#
-# Add nodepool with two taints
-#
- az aks nodepool add \
-    --resource-group akscluster \
-    --cluster-name akscluster \
-    --name np01 \
-    --node-count 1 \
-    --node-taints samplekey1=samplevalue1:NoSchedule,samplekey2=samplevalue2:NoSchedule
+kubectl get nodes -o custom-columns=NAME:'{.metadata.name}',REGION:'{.metadata.labels.topology\.kubernetes\.io/region}',ZONE:'{metadata.labels.topology\.kubernetes\.io/zone}'
 
 #
 # Delete cluster
 #
-az group delete -n $name -y
+# az group delete -n $name -y

@@ -139,8 +139,17 @@ control1ip=$(az vm list-ip-addresses -g $name -n ${name}-control-1 --query "[].v
 control2ip=$(az vm list-ip-addresses -g $name -n ${name}-control-2 --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
 worker1ip=$(az vm list-ip-addresses -g $name -n ${name}-worker-1 --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
 worker2ip=$(az vm list-ip-addresses -g $name -n ${name}-worker-2 --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
+
 #
-# Configure nodes
+# Temporary
+#
+control1ip=$(az vm list-ip-addresses -g kube-htqif -n kube-htqif-control-1 --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
+control2ip=$(az vm list-ip-addresses -g kube-htqif -n kube-htqif-control-2 --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
+worker1ip=$(az vm list-ip-addresses -g kube-htqif -n kube-htqif-worker-1 --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
+worker2ip=$(az vm list-ip-addresses -g kube-htqif -n kube-htqif-worker-2 --query "[].virtualMachine.network.publicIpAddresses[0].ipAddress" --output tsv)
+
+#
+# Configure first control plane node
 #
 ssh guvnor@$control1ip
 
@@ -211,3 +220,16 @@ kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl versio
 
 # Check for node readiness
 kubectl get nodes
+
+#
+# When you've run through this once, the first control plane node setup is complete.
+# To setup the second node, run all the above again up to the kubeadm commands. Then run the kubeadmin join command that was output as a result of running kubeadm on the first node
+#
+# For the worker nodes, the same again, but make sure to use the second of the two kubeadm commands that are output
+#
+# You can optionally copy the kubeconfig to your local machine
+#
+# scp guvnor@$control1ip:/home/guvnor/.kube/config ~/.kube/config
+#
+# Note this will overwrite existing kubeconfig files. If you want to copy this config elsewhere, use export KUBECONFIG=path-to-kubeconfig
+#
