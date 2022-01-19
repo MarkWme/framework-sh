@@ -57,7 +57,8 @@ kind create cluster --name kind-capz
 #
 # Install clusterctl
 #
-curl -L https://github.com/kubernetes-sigs/cluster-api/releases/download/v0.4.3/clusterctl-linux-amd64 -o clusterctl
+curl -L https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.0.2/clusterctl-linux-amd64 -o clusterctl
+
 chmod +x ./clusterctl
 sudo mv ./clusterctl /usr/local/bin/clusterctl
 clusterctl version
@@ -84,9 +85,10 @@ export AZURE_NODE_MACHINE_TYPE="Standard_D2s_v3"
 
 #
 # Generate the cluster config YAML
+# Make sure the kubernetes-version value is valid!
 #
 clusterctl generate cluster capi-quickstart \
-  --kubernetes-version v1.21.2 \
+  --kubernetes-version v1.23.0 \
   --control-plane-machine-count=3 \
   --worker-machine-count=3 \
   > ~/capi-quickstart.yaml
