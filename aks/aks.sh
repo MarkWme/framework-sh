@@ -42,6 +42,14 @@ aksSubnetId=$(az network vnet subnet list --vnet-name ${name}-network --resource
 #
 az identity create -n $name -g $name
 identityId=$(az identity show --name $name -g $name --query id -o tsv)
+
+#
+# Create ACR instance
+#
+az acr create \
+    --name $name \
+    --resource-group $name \
+    --sku standard
 #
 # Create AKS cluster
 #
@@ -57,6 +65,7 @@ az aks create \
     --enable-managed-identity \
     --assign-identity $identityId \
     --node-count 3 \
+    --attach-acr pcreuwcore \
     --enable-addons monitoring \
     --workspace-resource-id $workspaceId
 
