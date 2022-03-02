@@ -8,10 +8,17 @@
 # Set environment variables
 #
 location=westeurope
-name=arocluster
-virtualNetworkPrefix=10.150.0.0/22
-masterSubnetPrefix=10.150.0.0/23
-workerSubnetPrefix=10.150.2.0/23
+name=aro-$(cat /dev/urandom | base64 | tr -dc '[:lower:]' | fold -w ${1:-5} | head -n 1)
+
+number=0
+number=$(az network vnet list --query "[].addressSpace.addressPrefixes" -o tsv | cut -d . -f 2 | sort | tail -n 1)
+networkNumber=$(expr $number + 1)
+#
+# Set network and subnet prefixes
+#
+virtualNetworkPrefix=10.${networkNumber}.0.0/16
+masterSubnetPrefix=10.${networkNumber}.0.0/23
+workerSubnetPrefix=10.${networkNumber}.2.0/23
 
 #
 # Create resource group
@@ -75,7 +82,7 @@ az aro create \
   --vnet ${name}-vnet \
   --master-subnet master-subnet \
   --worker-subnet worker-subnet \
-  --pull-secret @/mnt/c/Users/mtjw/Downloads/pull-secret.txt
+  --pull-secret @/Users/mark/Downloads/pull-secret.txt
 
 #
 # Get the cluster credentials
@@ -110,8 +117,9 @@ oc login $apiServer -u $userName -p $password
 #
 # Create ACR instance
 #
+acrName=$(echo $name | sed 's/-//')
 az acr create \
-    --name ${name}-acr \
+    --name $acrName \
     --resource-group $name \
     --sku standard \
     --admin-enabled true
@@ -119,8 +127,8 @@ az acr create \
 #
 # Get ACR credentials
 #
-acrUsername=$(az acr credential show -n ${name}-acr | jq -r ".username")
-acrPassword=$(az acr credential show -n ${name}-acr | jq -r ".passwords[0].value")
+acrUsername=$(az acr credential show -n $acrName | jq -r ".username")
+acrPassword=$(az acr credential show -n $acrName | jq -r ".passwords[0].value")
 
 #
 # Create Kubernetes secret
@@ -128,11 +136,30 @@ acrPassword=$(az acr credential show -n ${name}-acr | jq -r ".passwords[0].value
 # and therefore only works with pods running in that Project
 #
 oc create secret docker-registry \
-    --docker-server=${name}-acr.azurecr.io \
+    --docker-server=${acrName}.azurecr.io \
     --docker-username=$acrUsername \
     --docker-password=$acrPassword \
     --docker-email=unused \
     acr-secret
+
+#
+# Enable monitoring with Azure Arc for Kubernetes
+#
+# Onboard cluster to Azure Arc
+#
+oc adm policy add-scc-to-user privileged system:serviceaccount:azure-arc:azure-arc-kube-aad-proxy-sa
+az connectedk8s connect --name $name --resource-group $name
+# Create Log Analytics workspace
+#
+az monitor log-analytics workspace create -g $name -n ${name}-logs
+workspaceId=$(az monitor log-analytics workspace list --query "[?name=='${name}-logs'].id" -o tsv)
+
+az k8s-extension create --name azuremonitor-containers \
+  --cluster-name $name \
+  --resource-group $name \
+  --cluster-type connectedClusters \
+  --extension-type Microsoft.AzureMonitor.Containers \
+  --configuration-settings logAnalyticsWorkspaceResourceID=$workspaceId
 
 #
 # Delete the cluster
