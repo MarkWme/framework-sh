@@ -7,7 +7,7 @@ location=westeurope
 #
 # Choose random name for resources
 #
-name=aks-$(cat /dev/urandom | tr -dc '[:lower:]' | fold -w ${1:-5} | head -n 1)
+name=aks-$(cat /dev/urandom | base64 | tr -dc '[:lower:]' | fold -w ${1:-5} | head -n 1)
 #
 # Calculate next available network address space
 #
@@ -93,4 +93,4 @@ az aks get-credentials -n $name -g $name --overwrite-existing
 #
 # Delete cluster
 #
-#az group delete -n $name -y
+# az group delete -n $name -y
