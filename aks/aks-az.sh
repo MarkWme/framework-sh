@@ -7,7 +7,7 @@ location=westeurope
 #
 # Choose random name for resources
 #
-name=aks-$(cat /dev/urandom | tr -dc '[:lower:]' | fold -w ${1:-5} | head -n 1)
+name=aks-$(cat /dev/urandom | base64 | tr -dc '[:lower:]' | fold -w ${1:-5} | head -n 1)
 #
 # Calculate next available network address space
 #
