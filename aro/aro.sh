@@ -11,7 +11,7 @@ location=westeurope
 #
 # Choose random name for resources
 #
-name=aro-$(cat /dev/urandom | tr -dc '[:lower:]' | fold -w ${1:-5} | head -n 1)
+name=aro-$(cat /dev/urandom | base64 | tr -dc '[:lower:]' | fold -w ${1:-5} | head -n 1)
 #
 # Calculate next available network address space
 #
@@ -66,6 +66,9 @@ az group create \
 #
 clientSecret=$(az ad sp create-for-rbac --name ${name}-spn --skip-assignment --query password --output tsv)
 clientId=$(az ad sp list --display-name ${name}-spn --query '[].appId' -o tsv)
+
+echo "Client ID: ${clientId}"
+echo "Client Secret: ${clientSecret}"
 
 #
 # Create virtual network
@@ -125,7 +128,7 @@ then
   # Create a jumpbox VM
   #
   adminUserName=aroadmin
-  adminPassword=$(cat /dev/urandom | tr -dc '[:alnum:]!$%&()[]{}:;.' | fold -w ${1:-20} | head -n 1)
+  adminPassword=$(cat /dev/urandom | base64 | tr -dc '[:alnum:]!$%&()[]{}:;.' | fold -w ${1:-20} | head -n 1)
 
   az vm create --name jumpbox-ubuntu \
     --resource-group $name \
@@ -171,7 +174,7 @@ az aro create \
   --worker-subnet ${name}-worker-subnet \
   --apiserver-visibility $apiServerVisibility \
   --ingress-visibility $ingressVisibility \
-  --pull-secret @/mnt/c/Users/mtjw/Downloads/pull-secret.txt \
+  --pull-secret @/Users/mark/Downloads/pull-secret.txt \
   -o table
 
 #
@@ -193,8 +196,9 @@ echo "Cluster admin URL: ${clusterAdminUrl}"
 # Download OpenShift command line tool
 #
 cd ~
-wget https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux.tar.gz
-sudo tar -zxvf openshift-client-linux.tar.gz -C /usr/local/bin
+# wget https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux.tar.gz
+# wget https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-mac-arm64.tar.gz
+# sudo tar -zxvf openshift-client-linux.tar.gz -C /usr/local/bin
 
 #
 # Login with oc
