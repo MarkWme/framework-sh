@@ -13,6 +13,10 @@ name=aks-$(cat /dev/urandom | base64 | tr -dc '[:lower:]' | fold -w ${1:-5} | he
 #
 number=0
 number=$(az network vnet list --query "[].addressSpace.addressPrefixes" -o tsv | cut -d . -f 2 | sort | tail -n 1)
+if [[ -z $number ]]
+then
+    number=0
+fi
 networkNumber=$(expr $number + 1)
 virtualNetworkPrefix=10.${networkNumber}.0.0/16
 aksSubnetPrefix=10.${networkNumber}.0.0/24
