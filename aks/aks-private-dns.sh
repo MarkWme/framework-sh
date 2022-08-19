@@ -22,20 +22,20 @@ jumpboxSubnetPrefix=10.${networkNumber}.100.0/24
 
 version=$(az aks get-versions -l $location --query "orchestrators[-1].orchestratorVersion" -o tsv)  2>/dev/null
 
-az group create -n $name -l $location
+az group create -n $name -l $location -o table
 
 #
 # AKS cluster with Azure CNI
 # Creates VNet, Managed Identity and cluster with three nodes
 #
-az network vnet create -n ${name}-vnet -g $name --address-prefixes $virtualNetworkPrefix
-az network vnet subnet create -g $name --vnet-name ${name}-vnet --name ${name}-aks-subnet --address-prefixes $aksSubnetPrefix
-az network vnet subnet create -g $name --vnet-name ${name}-vnet --name ${name}-jumpbox-subnet --address-prefixes $jumpboxSubnetPrefix
+az network vnet create -n ${name}-vnet -g $name --address-prefixes $virtualNetworkPrefix -o table
+az network vnet subnet create -g $name --vnet-name ${name}-vnet --name ${name}-aks-subnet --address-prefixes $aksSubnetPrefix -o table
+az network vnet subnet create -g $name --vnet-name ${name}-vnet --name ${name}-jumpbox-subnet --address-prefixes $jumpboxSubnetPrefix -o table
 
 aksSubnetId=$(az network vnet subnet list --vnet-name ${name}-vnet --resource-group $name --query "[?name=='${name}-aks-subnet'].id" -o tsv)
 
 
-az identity create -n $name -g $name
+az identity create -n $name -g $name -o table
 identityId=$(az identity show --name $name -g $name --query id -o tsv)
 
 #

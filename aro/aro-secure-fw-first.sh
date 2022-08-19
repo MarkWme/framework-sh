@@ -11,35 +11,48 @@
 #
 # Set environment variables
 #
-LOCATION=westeurope
-NAME=arosecurefw
-virtualNetworkPrefix=10.153.0.0/21
-masterSubnetPrefix=10.153.0.0/23
-workerSubnetPrefix=10.153.2.0/23
-firewallSubnetPrefix=10.153.4.0/23
-jumpboxSubnetPrefix=10.153.6.0/23
+location=westeurope
+#
+# Choose random name for resources
+#
+name=aro-$(cat /dev/urandom | base64 | tr -dc '[:lower:]' | fold -w ${1:-5} | head -n 1)
+#
+# Calculate next available network address space
+#
+number=0
+number=$(az network vnet list --query "[].addressSpace.addressPrefixes" -o tsv | cut -d . -f 2 | sort | tail -n 1)
+networkNumber=$(expr $number + 1)
+#
+# Set network and subnet prefixes
+#
+virtualNetworkPrefix=10.${networkNumber}.0.0/16
+masterSubnetPrefix=10.${networkNumber}.0.0/23
+workerSubnetPrefix=10.${networkNumber}.2.0/23
+firewallSubnetPrefix=10.${networkNumber}.4.0/23
+jumpboxSubnetPrefix=10.${networkNumber}.6.0/23
+bastionSubnetPrefix=10.${networkNumber}.8.0/23
 
 #
 # Create resource group
 #
 az group create \
-  --name $NAME \
-  --location $LOCATION
+  --name $name \
+  --location $location
 
 #
 # Create virtual network
 #
 az network vnet create \
-   --resource-group $NAME \
-   --name ${NAME}-vnet \
+   --resource-group $name \
+   --name ${name}-vnet \
    --address-prefixes $virtualNetworkPrefix
 
 #
 # Subnet for master nodes
 #
 az network vnet subnet create \
-  --resource-group $NAME \
-  --vnet-name ${NAME}-vnet \
+  --resource-group $name \
+  --vnet-name ${name}-vnet \
   --name master-subnet \
   --address-prefixes $masterSubnetPrefix \
   --service-endpoints Microsoft.ContainerRegistry
@@ -48,8 +61,8 @@ az network vnet subnet create \
 # Subnet for worker nodes
 #
 az network vnet subnet create \
-  --resource-group $NAME \
-  --vnet-name ${NAME}-vnet \
+  --resource-group $name \
+  --vnet-name ${name}-vnet \
   --name worker-subnet \
   --address-prefixes $workerSubnetPrefix \
   --service-endpoints Microsoft.ContainerRegistry
@@ -59,16 +72,16 @@ az network vnet subnet create \
 #
 az network vnet subnet update \
   --name master-subnet \
-  --resource-group $NAME \
-  --vnet-name ${NAME}-vnet \
+  --resource-group $name \
+  --vnet-name ${name}-vnet \
   --disable-private-link-service-network-policies true
 
 #
 # Subnet for firewall
 #
 az network vnet subnet create \
-  --resource-group $NAME \
-  --vnet-name ${NAME}-vnet \
+  --resource-group $name \
+  --vnet-name ${name}-vnet \
   --name AzureFirewallSubnet \
   --address-prefixes $firewallSubnetPrefix
 
@@ -76,31 +89,49 @@ az network vnet subnet create \
 # Subnet for Jump Box VM
 #
 az network vnet subnet create \
-  --resource-group $NAME \
-  --vnet-name ${NAME}-vnet \
+  --resource-group $name \
+  --vnet-name ${name}-vnet \
   --name jumpbox-subnet \
   --address-prefixes $jumpboxSubnetPrefix \
   --service-endpoints Microsoft.ContainerRegistry
 
+az network vnet subnet create \
+  -g $name \
+  --vnet-name ${name}-vnet \
+  --name "AzureBastionSubnet" \
+  --address-prefixes $bastionSubnetPrefix
 #
 # Create a jumpbox VM
 #
 VMUSERNAME=aroadmin
 
 az vm create --name ubuntu-jump \
-  --resource-group $NAME \
+  --resource-group $name \
   --ssh-key-values ~/.ssh/id_rsa.pub \
   --admin-username $VMUSERNAME \
   --image UbuntuLTS \
   --subnet jumpbox-subnet \
   --public-ip-address jumphost-ip \
   --public-ip-sku Standard \
-  --vnet-name ${NAME}-vnet
+  --vnet-name ${name}-vnet
+
+#
+# Create an Azure Bastion
+#
+az network public-ip create --name ${name}-bastion-ip \
+    --resource-group $name \
+    --sku Standard
+
+az network bastion create --name $name \
+    --resource-group $name \
+    --location $location \
+    --public-ip-address ${name}-bastion-ip \
+    --vnet-name ${name}-vnet \
 
 #
 # Create a public IP address for the firewall
 #
-az network public-ip create -g $NAME -n ${NAME}-ip --sku "Standard" --location $LOCATION
+az network public-ip create -g $name -n ${name}-firewall-ip --sku "Standard" --location $location
 
 #
 # Add / update the Azure Firewall extension for the az cli
@@ -110,26 +141,26 @@ az extension add --upgrade --yes -n azure-firewall
 #
 # Create Azure Firewall
 #
-az network firewall create -g $NAME -n $NAME -l $LOCATION
-az network firewall ip-config create -g $NAME -f $NAME -n ${NAME}-fw-config --public-ip-address ${NAME}-ip --vnet-name ${NAME}-vnet
+az network firewall create -g $name -n $name -l $location
+az network firewall ip-config create -g $name -f $name -n ${name}-fw-config --public-ip-address ${name}-firewall-ip --vnet-name ${name}-vnet
 
 #
 # Get Azure Firewall IP's
 #
-FWPUBLIC_IP=$(az network public-ip show -g $NAME -n ${NAME}-ip --query "ipAddress" -o tsv)
-FWPRIVATE_IP=$(az network firewall show -g $NAME -n ${NAME} --query "ipConfigurations[0].privateIpAddress" -o tsv)
+FWPUBLIC_IP=$(az network public-ip show -g $name -n ${name}-firewall-ip --query "ipAddress" -o tsv)
+FWPRIVATE_IP=$(az network firewall show -g $name -n ${name} --query "ipConfigurations[0].privateIpAddress" -o tsv)
 
 #
 # Create route table and routes
 #
-az network route-table create -g $NAME --name ${NAME}-udr
+az network route-table create -g $name --name ${name}-udr
 
-az network route-table route create -g $NAME --name ${NAME}-udr --route-table-name ${NAME}-udr --address-prefix 0.0.0.0/0 --next-hop-type VirtualAppliance --next-hop-ip-address $FWPRIVATE_IP
+az network route-table route create -g $name --name ${name}-udr --route-table-name ${name}-udr --address-prefix 0.0.0.0/0 --next-hop-type VirtualAppliance --next-hop-ip-address $FWPRIVATE_IP
 
 #
 # OpenShift application rules
 #
-az network firewall application-rule create -g $NAME -f $NAME \
+az network firewall application-rule create -g $name -f $name \
   --collection-name 'ARO' \
   --action allow \
   --priority 100 \
@@ -139,9 +170,33 @@ az network firewall application-rule create -g $NAME -f $NAME \
   --target-fqdns 'registry.redhat.io' '*.quay.io' 'sso.redhat.com' 'management.azure.com' 'mirror.openshift.com' 'api.openshift.com' 'quay.io' '*.blob.core.windows.net' 'gcs.prod.monitoring.core.windows.net' 'registry.access.redhat.com' 'login.microsoftonline.com' '*.servicebus.windows.net' '*.table.core.windows.net' 'grafana.com'
 
 #
+# New egress rules?
+#
+az network firewall application-rule create -g $name -f $name \
+  --collection-name 'ARO' \
+  --action allow \
+  --priority 100 \
+  -n 'required' \
+  --source-addresses '*' \
+  --protocols 'http=80' 'https=443' \
+  --target-fqdns 'registry.redhat.io' '*.quay.io' 'sso.redhat.com' 'mirror.openshift.com' 'api.openshift.com' 'quay.io' 'registry.access.redhat.com' 'grafana.com'
+
+#
+# Minimal egress rules, determined by experimentation!
+#
+az network firewall application-rule create -g $name -f $name \
+  --collection-name 'ARO' \
+  --action allow \
+  --priority 100 \
+  -n 'required' \
+  --source-addresses '*' \
+  --protocols 'http=80' 'https=443' \
+  --target-fqdns 'api.openshift.com' 'quay.io' 'mirror.openshift.com'
+
+#
 # Rules to allow images from Docker hub
 #
-az network firewall application-rule create -g $NAME -f $NAME \
+az network firewall application-rule create -g $name -f $name \
   --collection-name 'Docker' \
   --action allow \
   --priority 200 \
@@ -153,26 +208,28 @@ az network firewall application-rule create -g $NAME -f $NAME \
 #
 # Associate ARO subnets to firewall
 #
-az network vnet subnet update -g $NAME --vnet-name ${NAME}-vnet --name master-subnet --route-table ${NAME}-udr
-az network vnet subnet update -g $NAME --vnet-name ${NAME}-vnet --name worker-subnet --route-table ${NAME}-udr
+az network vnet subnet update -g $name --vnet-name ${name}-vnet --name master-subnet --route-table ${name}-udr
+az network vnet subnet update -g $name --vnet-name ${name}-vnet --name worker-subnet --route-table ${name}-udr
 
 #
 # Create the cluster
 #
 az aro create \
-  --resource-group $NAME \
-  --name $NAME \
-  --vnet ${NAME}-vnet \
+  --resource-group $name \
+  --name $name \
+  --vnet ${name}-vnet \
   --master-subnet master-subnet \
   --worker-subnet worker-subnet \
   --apiserver-visibility Private \
   --ingress-visibility Private \
-  --pull-secret @/mnt/c/Users/mtjw/Downloads/pull-secret.txt
+  --tags "apiServer=private" "ingress=private" "firewallEnabled=true" "outboundType=UserDefinedRouting"
+ 
+  --pull-secret @/Users/mark/Downloads/pull-secret.txt
 
 #
 # Get public IP address of jumphost
 #
-JUMPHOST_IP=$(az network public-ip show -g $NAME -n jumphost-ip | jq -r '.ipAddress')
+JUMPHOST_IP=$(az network public-ip show -g $name -n jumphost-ip | jq -r '.ipAddress')
 
 #
 # Jumphost configuration
@@ -187,9 +244,9 @@ sudo apt install jq -y
 #
 az login
 NAME=arosecurefw
-ARO_PASSWORD=$(az aro list-credentials -n $NAME -g $NAME -o json | jq -r '.kubeadminPassword')
-ARO_USERNAME=$(az aro list-credentials -n $NAME -g $NAME -o json | jq -r '.kubeadminUsername')
-ARO_URL=$(az aro show -n $NAME -g $NAME -o json | jq -r '.apiserverProfile.url')
+ARO_PASSWORD=$(az aro list-credentials -n $name -g $name -o json | jq -r '.kubeadminPassword')
+ARO_USERNAME=$(az aro list-credentials -n $name -g $name -o json | jq -r '.kubeadminUsername')
+ARO_URL=$(az aro show -n $name -g $name -o json | jq -r '.apiserverProfile.url')
 
 #
 # Install oc cli
@@ -238,7 +295,7 @@ curl microsoft.com
 # seems to fail if the id_rsa.pub public key file exists in the .ssh folder. Fix was
 # to simply move the file out of that folder. 
 #
-CONSOLE_URL=$(az aro show -n $NAME -g $NAME --query "consoleProfile.url" -o tsv | sed -e 's/https\?:\/\///' | sed -e 's/\///')
+CONSOLE_URL=$(az aro show -n $name -g $name --query "consoleProfile.url" -o tsv | sed -e 's/https\?:\/\///' | sed -e 's/\///')
 sudo ssh -N -i /home/mark/.ssh/id_rsa -L 443:$CONSOLE_URL:443 aroadmin@$JUMPHOST_IP
 
 #
