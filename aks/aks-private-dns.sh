@@ -47,7 +47,7 @@ az vm create --name ubuntu-jump \
   --resource-group $name \
   --ssh-key-values ~/.ssh/id_rsa.pub \
   --admin-username $VMUSERNAME \
-  --image UbuntuLTS \
+  --image Ubuntu2204 \
   --subnet ${name}-jumpbox-subnet \
   --public-ip-address jumphost-ip \
   --public-ip-sku Standard \
@@ -75,4 +75,4 @@ az aks get-credentials -n $name -g $name --overwrite-existing
 #
 # Delete cluster
 #
-az group delete -n $name -y
+# az group delete -n $name -y
